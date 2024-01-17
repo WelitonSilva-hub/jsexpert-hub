@@ -1,9 +1,7 @@
 import MP4Demuxer from './mp4Demuxer.js';
 import VideoProcessor from './videoProcessor.js';
 import CanvasRenderer from './canvasRenderer.js';
-
-const mp4Demuxer = new MP4Demuxer();
-const videoProcessor = new VideoProcessor({ mp4Demuxer: mp4Demuxer });
+import WebMWritter from '../deps/webm-writer2.js';
 
 const qvgaConstraints = { width: 320, height: 240 };
 const vgaConstraints = { width: 640, height: 480 };
@@ -19,19 +17,30 @@ const encoderConfig = {
     // MP4
     // codec: 'avc1.42002A',
     // pt: 1,
-    // hardwareAcceleration: 'prefer-hardawre',
+    // hardwareAcceleration: 'prefer-hardware',
     // avc: { format: 'annexb' },
 };
+
+const webMWritterConfig = {
+    codec: 'VP9',
+    width: encoderConfig.width,
+    height: encoderConfig.height,
+    bitrate: encoderConfig.bitrate,
+};
+
+const mp4Demuxer = new MP4Demuxer();
+const webMWritter = new WebMWritter(webMWritterConfig);
+const videoProcessor = new VideoProcessor({ mp4Demuxer, webMWritter });
 
 onmessage = async ({ data }) => {
     await videoProcessor.start({
         file: data.file,
         renderFrame: new CanvasRenderer(data.canvas).getRenderer(),
         encoderConfig: encoderConfig,
-        sendMessage(message) {
+        sendMessage: (message) => {
             self.postMessage(message);
         },
     });
 
-    self.postMessage({ status: 'done' });
+    // self.postMessage({ status: 'done' });
 };
