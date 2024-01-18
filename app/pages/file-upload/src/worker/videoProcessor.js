@@ -1,16 +1,19 @@
 export default class VideoProcessor {
     #mp4Demuxer;
     #webMWritter;
+    #service;
     #buffers = [];
 
     /**
      * @param {object} options
      * @param {import('./mp4Demuxer.js').default} options.mp4Demuxer
      * @param {import('../deps/webm-writer2.js').default} options.webMWritter
+     * @param {import('./service.js').default} options.service
      */
-    constructor({ mp4Demuxer, webMWritter }) {
+    constructor({ mp4Demuxer, webMWritter, service }) {
         this.#mp4Demuxer = mp4Demuxer;
         this.#webMWritter = webMWritter;
+        this.#service = service;
     }
 
     /** @returns {ReadableStream} */
@@ -30,13 +33,13 @@ export default class VideoProcessor {
 
                 return this.#mp4Demuxer.run(stream, {
                     async onConfig(config) {
-                        const { supported } = await VideoDecoder.isConfigSupported(config);
+                        // const { supported } = await VideoDecoder.isConfigSupported(config);
 
-                        if (!supported) {
-                            console.log('mp4Muxer VideoDecoder config not supported', config);
-                            controller.close();
-                            return;
-                        }
+                        // if (!supported) {
+                        //     console.log('mp4Muxer VideoDecoder config not supported', config);
+                        //     controller.close();
+                        //     return;
+                        // }
 
                         decoder.configure(config);
                     },
@@ -150,6 +153,45 @@ export default class VideoProcessor {
         return { readable: this.#webMWritter.getStream(), writable: writable };
     }
 
+    upload(filename, resolution, type) {
+        const chunks = [];
+        let byteCount = 0;
+        let segmentCount = 0;
+
+        const triggerUpload = async () => {
+            const blob = new Blob(chunks, { type: 'video/webm ' });
+
+            // Fazer upload
+            await this.#service.uploadFile({
+                filename: `${filename}-${resolution}.${++segmentCount}.${type}`,
+                fileBuffer: blob,
+            });
+
+            chunks.length = 0;
+            byteCount = 0;
+        };
+
+        return new WritableStream({
+            /**
+             * @param {object} options
+             * @param {Uint8Array} options.data
+             */
+            async write({ data }) {
+                chunks.push(data);
+                byteCount += data.byteLength;
+
+                if (byteCount <= 10e6) return;
+
+                await triggerUpload(chunks);
+            },
+            async close() {
+                if (!chunks.length) return;
+
+                await triggerUpload(chunks);
+            },
+        });
+    }
+
     async start({ file, encoderConfig, renderFrame, sendMessage }) {
         const stream = file.stream();
         const filename = file.name.split('/').pop().replace('.mp4', '');
@@ -178,10 +220,8 @@ export default class VideoProcessor {
             //         },
             //     })
             // )
-            .pipeTo(
-                new WritableStream({
-                    write(frame) {},
-                })
-            );
+            .pipeTo(this.upload(filename, '144p', 'webm'));
+
+        sendMessage({ status: 'done' });
     }
 }

@@ -2,6 +2,7 @@ import MP4Demuxer from './mp4Demuxer.js';
 import VideoProcessor from './videoProcessor.js';
 import CanvasRenderer from './canvasRenderer.js';
 import WebMWritter from '../deps/webm-writer2.js';
+import Service from './service.js';
 
 const qvgaConstraints = { width: 320, height: 240 };
 const vgaConstraints = { width: 640, height: 480 };
@@ -30,7 +31,8 @@ const webMWritterConfig = {
 
 const mp4Demuxer = new MP4Demuxer();
 const webMWritter = new WebMWritter(webMWritterConfig);
-const videoProcessor = new VideoProcessor({ mp4Demuxer, webMWritter });
+const service = new Service({ url: 'http://10.200.177.4:3000' });
+const videoProcessor = new VideoProcessor({ mp4Demuxer, webMWritter, service });
 
 onmessage = async ({ data }) => {
     await videoProcessor.start({
